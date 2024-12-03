@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>U27 Image Manager</title>
+    <title>U27 Menu Manager</title>
     <style>
         :root {
             --primary-color: #2196F3;
@@ -197,10 +197,11 @@
             margin-top: var(--spacing-lg);
         }
 
-        .control-row {
-            display: flex;
-            flex-direction: column;
-            gap: var(--spacing-md);
+        .control-buttons {
+            display: grid;
+            grid-template-columns: auto auto;
+            gap: var(--spacing-sm);
+            justify-content: start;
         }
 
         .pagination {
@@ -218,12 +219,6 @@
 
         .pagination button:disabled {
             opacity: 0.5;
-        }
-
-        .control-buttons {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: var(--spacing-sm);
         }
 
         button {
@@ -479,6 +474,16 @@
         .upload-notification.show {
             opacity: 1;
         }
+
+        .version-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            opacity: 0.7;
+            margin-left: var(--spacing-sm);
+            padding: 2px 6px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
 </head>
@@ -486,17 +491,10 @@
     <div class="container">
         <div class="header">
             <div class="header-content">
-                <h1>Image Manager</h1>
+                <h1>U27 Menu Manager <span class="version-label">v1.0</span></h1>
                 <div class="device-name">
                     <span id="device-name-text">{{ device_name or 'Click Here To Set Device Name' }}</span>
                 </div>
-            </div>
-        </div>
-
-        <div class="control-row">
-            <div class="control-buttons">
-                <button id="select-all">Select All</button>
-                <button id="delete-selected" disabled>Delete</button>
             </div>
         </div>
 
@@ -505,16 +503,24 @@
                 <input type="file" id="file-input" accept="image/*" multiple style="display: none;">
                 <div class="upload-text">
                     Drop images here or click to upload<br>
-                    <small>Maximum {{ max_images }} images allowed</small>
+                    <small>( <span id="image-count">{{ images|length }}</span> / {{ max_images }} )</small>
                 </div>
             </form>
+        </div>
+        <div class="progress-bar" id="progress-bar">
+            <div class="progress-bar-inner" id="progress-bar-inner"></div>
+        </div>
+
+        <div class="control-buttons" style="margin: var(--spacing-lg) 0;">
+            <button id="select-all">Select All</button>
+            <button id="delete-selected" disabled>Delete</button>
         </div>
 
         <div class="image-grid" id="image-grid">
             {% for image in images %}
             <div class="image-item" data-filename="{{ image.name }}">
                 <div class="image-handle"></div>
-                <img src="{{ url_for('uploaded_file', filename=image.name) }}" 
+                <img src="{{ url_for('thumbnail', filename=image.name) }}" 
                      alt="{{ image.name }}"
                      onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22>⚠️</text></svg>'"/>
                 <div class="image-info">
@@ -611,7 +617,22 @@
         });
 
         async function uploadFiles(files) {
-            uploadArea.textContent = 'Uploading images...';
+            const progressBar = document.getElementById('progress-bar');
+            const progressBarInner = document.getElementById('progress-bar-inner');
+            const imageCountSpan = document.getElementById('image-count');
+            let completed = 0;
+            
+            // Get current count from the span
+            let currentCount = parseInt(imageCountSpan.textContent);
+            const maxImages = {{ max_images }};  // Get from Flask template
+            
+            progressBar.style.display = 'block';
+            progressBarInner.style.width = '0%';
+            uploadArea.innerHTML = `
+                <div class="upload-text">
+                    Uploading images...<br>
+                    <small>( <span id="upload-count">0</span> / ${files.length} )</small>
+                </div>`;
             
             try {
                 for (let i = 0; i < files.length; i++) {
@@ -629,6 +650,15 @@
                             if (!response.ok) {
                                 throw new Error('Upload failed');
                             }
+                            
+                            completed++;
+                            currentCount++;  // Increment current count
+                            progressBarInner.style.width = `${(completed / files.length) * 100}%`;
+                            
+                            // Update upload counter to show progress through current batch
+                            document.getElementById('upload-count').textContent = completed;
+                            // Update total images counter
+                            imageCountSpan.textContent = currentCount;
                         } catch (error) {
                             console.error('Error uploading file:', error);
                             showNotification(`Failed to upload ${file.name}`);
@@ -638,10 +668,16 @@
                     }
                 }
             } finally {
+                // Hide progress bar after a short delay
+                setTimeout(() => {
+                    progressBar.style.display = 'none';
+                    progressBarInner.style.width = '0%';
+                }, 1000);
+                
                 uploadArea.innerHTML = `
                     <div class="upload-text">
                         Drop images here or click to upload<br>
-                        <small>Maximum {{ max_images }} images allowed</small>
+                        <small>( <span id="image-count">${currentCount}</span> / ${maxImages} )</small>
                     </div>`;
             }
         }
@@ -795,7 +831,7 @@
                 imageGrid.innerHTML = data.images.map(image => `
                     <div class="image-item" data-filename="${image.name}">
                         <div class="image-handle"></div>
-                        <img src="/uploads/${image.name}?t=${Date.now()}" 
+                        <img src="/thumbnail/${image.name}" 
                              alt="${image.name}"
                              onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22>⚠️</text></svg>'"/>
                         <div class="image-info">
@@ -804,6 +840,9 @@
                         </div>
                     </div>
                 `).join('');
+                
+                // Update image count
+                document.getElementById('image-count').textContent = data.images.length;
                 
                 // Clear selections if deleted images were selected
                 const currentFilenames = data.images.map(img => img.name);

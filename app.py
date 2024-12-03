@@ -8,6 +8,11 @@ import json
 from werkzeug.utils import secure_filename
 from queue import Queue
 from threading import Lock
+from PIL import Image
+import io
+import hashlib
+from functools import lru_cache
+import random
 
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
@@ -27,6 +32,9 @@ slideshow_process = None
 # Store SSE clients
 clients = []
 clients_lock = Lock()
+
+THUMBNAIL_SIZE = (512, 512)  # Increased from (150, 150)
+THUMBNAIL_CACHE = {}  # In-memory cache for thumbnails
 
 def notify_clients(event_type, data):
     with clients_lock:
@@ -151,6 +159,45 @@ def save_slideshow_state(active):
         print(f"Error saving slideshow state: {e}")
         return False
 
+def generate_thumbnail(filename):
+    """Generate a thumbnail for an image and cache it"""
+    try:
+        # Check if thumbnail is in cache
+        if filename in THUMBNAIL_CACHE:
+            return THUMBNAIL_CACHE[filename]
+        
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
+        if not os.path.exists(file_path):
+            return None
+        
+        # Open and create thumbnail
+        with Image.open(file_path) as img:
+            # Convert to RGB if necessary (handles PNG with transparency)
+            if img.mode in ('RGBA', 'LA'):
+                background = Image.new('RGB', img.size, 'black')
+                background.paste(img, mask=img.split()[-1])
+                img = background
+            elif img.mode != 'RGB':
+                img = img.convert('RGB')
+            
+            # Remove problematic profiles
+            if 'icc_profile' in img.info:
+                img.info.pop('icc_profile')
+            
+            img.thumbnail(THUMBNAIL_SIZE, Image.Resampling.LANCZOS)
+            
+            # Save to bytes
+            thumb_io = io.BytesIO()
+            img.save(thumb_io, 'JPEG', quality=85, icc_profile=None)
+            thumb_io.seek(0)
+            
+            # Cache the thumbnail using filename as key
+            THUMBNAIL_CACHE[filename] = thumb_io.getvalue()
+            return THUMBNAIL_CACHE[filename]
+    except Exception as e:
+        print(f"Error generating thumbnail for {filename}: {e}")
+        return None
+
 @app.route('/')
 def index():
     # Load initial state
@@ -198,16 +245,18 @@ def upload_file():
     if not file.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp')):
         return jsonify({'error': 'Invalid file type'}), 400
 
+    # Check max images limit
+    current_images = len(os.listdir(UPLOAD_FOLDER))
+    if current_images >= MAX_IMAGES:
+        return jsonify({'error': f'Maximum {MAX_IMAGES} images allowed'}), 400
+
     try:
-        # Get original filename parts
-        original_filename = secure_filename(file.filename)
-        name, ext = os.path.splitext(original_filename)
+        # Get original filename and secure it
+        filename = secure_filename(file.filename)
+        name, ext = os.path.splitext(filename)
         
-        # Start with original name
-        filename = original_filename
+        # Only modify filename if it already exists
         counter = 1
-        
-        # Keep trying new names until we find one that doesn't exist
         while os.path.exists(os.path.join(UPLOAD_FOLDER, filename)):
             filename = f"{name}({counter}){ext}"
             counter += 1
@@ -216,20 +265,34 @@ def upload_file():
         file_path = os.path.join(UPLOAD_FOLDER, filename)
         file.save(file_path)
         
-        # Update order and notify clients
+        # Load current order and append new file
         saved_order = load_image_order()
         order = saved_order.get('order', [])
         if filename not in order:
-            order.append(filename)
+            order.append(filename)  # Add to end of list
             save_image_order({'order': order})
-            notify_clients('image_order', {'order': order})
         
-        # Get updated image list and notify clients
+        # Get all files in upload directory
+        existing_files = set(os.listdir(UPLOAD_FOLDER))
+        
+        # Build ordered image list
         images = []
-        for f in os.listdir(UPLOAD_FOLDER):
-            fpath = os.path.join(UPLOAD_FOLDER, f)
+        
+        # First add files that are in the saved order
+        for fname in order:
+            if fname in existing_files:
+                fpath = os.path.join(UPLOAD_FOLDER, fname)
+                upload_time = datetime.fromtimestamp(os.path.getctime(fpath)).strftime('%Y-%m-%d %H:%M:%S')
+                images.append({'name': fname, 'upload_time': upload_time})
+                existing_files.remove(fname)
+        
+        # Then add any remaining files
+        for fname in sorted(existing_files):
+            fpath = os.path.join(UPLOAD_FOLDER, fname)
             upload_time = datetime.fromtimestamp(os.path.getctime(fpath)).strftime('%Y-%m-%d %H:%M:%S')
-            images.append({'name': f, 'upload_time': upload_time})
+            images.append({'name': fname, 'upload_time': upload_time})
+        
+        # Notify clients about the updated image list
         notify_clients('image_list', {'images': images})
         
         return jsonify({
@@ -323,6 +386,9 @@ def delete_images():
                 # Remove from order if present
                 if filename in order:
                     order.remove(filename)
+                # Clear thumbnail from cache using filename
+                if filename in THUMBNAIL_CACHE:
+                    del THUMBNAIL_CACHE[filename]
         except Exception as e:
             print(f"Error deleting {filename}: {e}")
             return jsonify({'error': f'Failed to delete {filename}'}), 500
@@ -330,12 +396,25 @@ def delete_images():
     # Save updated order
     save_image_order({'order': order})
     
-    # Get updated image list
+    # Get all files in upload directory
+    existing_files = set(os.listdir(UPLOAD_FOLDER))
+    
+    # Build ordered image list
     images = []
-    for f in os.listdir(UPLOAD_FOLDER):
-        fpath = os.path.join(UPLOAD_FOLDER, f)
-        upload_time = datetime.fromtimestamp(os.path.getctime(fpath)).strftime('%Y-%m-%d %H:%M:%S')
-        images.append({'name': f, 'upload_time': upload_time})
+    
+    # First add files that are in the saved order
+    for filename in order:
+        if filename in existing_files:
+            file_path = os.path.join(UPLOAD_FOLDER, filename)
+            upload_time = datetime.fromtimestamp(os.path.getctime(file_path)).strftime('%Y-%m-%d %H:%M:%S')
+            images.append({'name': filename, 'upload_time': upload_time})
+            existing_files.remove(filename)
+    
+    # Then add any remaining files that weren't in the order
+    for filename in sorted(existing_files):
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
+        upload_time = datetime.fromtimestamp(os.path.getctime(file_path)).strftime('%Y-%m-%d %H:%M:%S')
+        images.append({'name': filename, 'upload_time': upload_time})
     
     # Notify clients about the updated image list
     notify_clients('image_list', {'images': images})
@@ -407,6 +486,20 @@ def update_selected():
         notify_clients('selected_images', {'selected': selected})
         return jsonify({'status': 'success'})
     return jsonify({'status': 'error', 'message': 'Failed to save selected images'}), 500
+
+@app.route('/thumbnail/<filename>')
+def thumbnail(filename):
+    if not os.path.exists(os.path.join(UPLOAD_FOLDER, filename)):
+        return '', 404
+    
+    try:
+        thumb_data = generate_thumbnail(filename)
+        if thumb_data:
+            return Response(thumb_data, mimetype='image/jpeg')
+        return '', 500
+    except Exception as e:
+        print(f"Error serving thumbnail for {filename}: {e}")
+        return '', 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000) 
