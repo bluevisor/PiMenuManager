@@ -48,26 +48,30 @@ def slide_surface(surface1, surface2, progress, direction="left"):
     return result
 
 def zoom_surface(surface1, surface2, progress, zoom_in=True):
-    """Zoom transition between two surfaces"""
+    """Zoom transition with scale caching"""
     width = surface1.get_width()
     height = surface1.get_height()
     result = pygame.Surface((width, height), pygame.SRCALPHA)
-    result.fill((0, 0, 0, 255))  # Fully opaque black
+    result.fill((0, 0, 0, 255))
     
     if zoom_in:
-        # First image zooms in and fades out
-        scale = 1 + (progress * 0.3)  # Zoom up to 130%
+        scale = 1 + (progress * 0.3)
         scaled_size = (int(width * scale), int(height * scale))
-        scaled = pygame.transform.smoothscale(surface1, scaled_size)
         
-        # Center the scaled image
-        x = (width - scaled_size[0]) // 2
-        y = (height - scaled_size[1]) // 2
+        # Cache scaled surface
+        cache_key = (id(surface1), scaled_size)
+        if not hasattr(zoom_surface, 'cache'):
+            zoom_surface.cache = {}
+        
+        if cache_key not in zoom_surface.cache:
+            zoom_surface.cache[cache_key] = pygame.transform.smoothscale(surface1, scaled_size)
+        
+        scaled = zoom_surface.cache[cache_key]
         
         # Create separate surfaces for alpha blending
         first_layer = pygame.Surface((width, height), pygame.SRCALPHA)
         first_layer.fill((0, 0, 0, 0))  # Transparent
-        first_layer.blit(scaled, (x, y))
+        first_layer.blit(scaled, (0, 0))
         first_layer.set_alpha(int(255 * (1 - progress)))
         
         second_layer = pygame.Surface((width, height), pygame.SRCALPHA)
@@ -104,17 +108,32 @@ def zoom_surface(surface1, surface2, progress, zoom_in=True):
     return result
 
 def rotate_surface(surface1, surface2, progress, clockwise=True):
-    """Rotate transition between two surfaces"""
+    """Rotate transition between two surfaces with caching"""
     width = surface1.get_width()
     height = surface1.get_height()
     result = pygame.Surface((width, height), pygame.SRCALPHA)
     result.fill((0, 0, 0, 255))
     
+    # Cache key based on angle
     angle = 180 * progress if clockwise else -180 * progress
+    cache_key1 = (id(surface1), angle)
+    cache_key2 = (id(surface2), angle - 180 if clockwise else angle + 180)
     
-    # Create separate surfaces for rotation and alpha
-    rotated1 = pygame.transform.rotozoom(surface1, angle, 1)
-    rotated2 = pygame.transform.rotozoom(surface2, angle - 180 if clockwise else angle + 180, 1)
+    # Use cached rotated surfaces if available
+    if not hasattr(rotate_surface, 'cache'):
+        rotate_surface.cache = {}
+    
+    if cache_key1 not in rotate_surface.cache:
+        rotate_surface.cache[cache_key1] = pygame.transform.rotozoom(surface1, angle, 1)
+    if cache_key2 not in rotate_surface.cache:
+        rotate_surface.cache[cache_key2] = pygame.transform.rotozoom(surface2, angle - 180 if clockwise else angle + 180, 1)
+    
+    rotated1 = rotate_surface.cache[cache_key1]
+    rotated2 = rotate_surface.cache[cache_key2]
+    
+    # Clear cache periodically to prevent memory growth
+    if len(rotate_surface.cache) > 360:  # Clear after full rotation worth of angles
+        rotate_surface.cache.clear()
     
     # Create alpha layers
     first_layer = pygame.Surface((width, height), pygame.SRCALPHA)
@@ -156,6 +175,35 @@ def fade_to_black(surface1, surface2, progress):
     
     return result
 
+def load_and_scale_image(path, screen_width, screen_height):
+    """Load and scale image with error handling"""
+    try:
+        img = pygame.image.load(path).convert()  # Convert for faster blitting
+        img_width = img.get_width()
+        img_height = img.get_height()
+        aspect_ratio = img_width / img_height
+        
+        if screen_width / screen_height > aspect_ratio:
+            new_height = screen_height
+            new_width = int(new_height * aspect_ratio)
+        else:
+            new_width = screen_width
+            new_height = int(new_width / aspect_ratio)
+        
+        scaled_img = pygame.transform.smoothscale(img, (new_width, new_height))
+        
+        # Create display surface
+        display_surface = pygame.Surface((screen_width, screen_height))
+        display_surface.fill((0, 0, 0))
+        x = (screen_width - new_width) // 2
+        y = (screen_height - new_height) // 2
+        display_surface.blit(scaled_img, (x, y))
+        
+        return display_surface
+    except Exception as e:
+        print(f"Error loading image {path}: {e}")
+        return None
+
 def display_slideshow(image_paths, delay=3, transition="fade", transition_duration=3.0):
     pygame.init()
     screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
@@ -165,44 +213,129 @@ def display_slideshow(image_paths, delay=3, transition="fade", transition_durati
     # Hide the mouse cursor
     pygame.mouse.set_visible(False)
 
-    # Debug output
-    print(f"Screen size: {screen_width}x{screen_height}")
-    print(f"Loading {len(image_paths)} images...")
-    print(f"Settings: delay={delay}, transition={transition}, transition_duration={transition_duration}")
+    # Load and setup logo for loading animation
+    try:
+        logo = pygame.image.load('logo_white.png').convert_alpha()
+        # Scale logo to 1/3 screen height maintaining aspect ratio
+        logo_height = screen_height // 4
+        aspect_ratio = logo.get_width() / logo.get_height()
+        logo_width = int(logo_height * aspect_ratio)
+        logo = pygame.transform.smoothscale(logo, (logo_width, logo_height))
+        
+        # Position logo at screen center
+        logo_x = (screen_width - logo_width) // 2
+        logo_y = (screen_height - logo_height) // 2
+        
+        # Function to draw loading progress
+        def draw_loading_progress(progress):
+            fill_height = int(logo_height * progress)
+            
+            # Create a mask for the "filling" effect
+            mask = pygame.Surface((logo_width, logo_height), pygame.SRCALPHA)
+            mask.fill((255, 255, 255, 0))  # Transparent
+            
+            # Fill from bottom to top
+            visible_portion = pygame.Rect(0, logo_height - fill_height, logo_width, fill_height)
+            mask.fill((255, 255, 255, 255), visible_portion)  # Opaque
+            
+            # Apply mask to logo
+            frame = logo.copy()
+            frame.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+            
+            # Draw frame
+            screen.fill((0, 0, 0))
+            screen.blit(frame, (logo_x, logo_y))
+            pygame.display.flip()
+            
+            # Handle events
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT or (
+                    event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE
+                ):
+                    pygame.quit()
+                    return True
+            return False
 
-    # Load and scale all images
-    images = []
-    for path in image_paths:
-        try:
-            print(f"Loading image: {path}")
-            img = pygame.image.load(path)
-            print(f"Original size: {img.get_width()}x{img.get_height()}")
+        # Show initial empty logo
+        draw_loading_progress(0)
+        
+        # Debug output
+        print(f"Screen size: {screen_width}x{screen_height}")
+        print(f"Loading {len(image_paths)} images...")
+        print(f"Settings: delay={delay}, transition={transition}, transition_duration={transition_duration}")
+
+        # Load and scale all images with progress
+        images = []
+        total_images = len(image_paths)
+        
+        for i, path in enumerate(image_paths):
+            try:
+                print(f"Loading image: {path}")
+                img = load_and_scale_image(path, screen_width, screen_height)
+                if img:
+                    images.append(img)
+                    print(f"Successfully loaded image: {path}")
+                
+                # Update loading progress
+                progress = (i + 1) / total_images
+                if draw_loading_progress(progress):
+                    return  # Exit if requested
+                
+                clock.tick(60)  # Keep animation smooth
+                
+            except Exception as e:
+                print(f"Error loading image {path}: {e}")
+
+        # Fade out the logo to black
+        fade_duration = 0.5  # Half second fade out
+        fade_start = time.time()
+        while time.time() - fade_start < fade_duration:
+            progress = (time.time() - fade_start) / fade_duration
             
-            # Calculate aspect ratio preserving scale
-            img_width = img.get_width()
-            img_height = img.get_height()
-            aspect_ratio = img_width / img_height
+            # Create fading logo
+            frame = logo.copy()
+            frame.set_alpha(int(255 * (1 - progress)))
             
-            if screen_width / screen_height > aspect_ratio:
-                new_height = screen_height
-                new_width = int(new_height * aspect_ratio)
-            else:
-                new_width = screen_width
-                new_height = int(new_width / aspect_ratio)
+            # Draw frame
+            screen.fill((0, 0, 0))
+            screen.blit(frame, (logo_x, logo_y))
+            pygame.display.flip()
+            clock.tick(60)
             
-            scaled_img = pygame.transform.scale(img, (new_width, new_height))
-            print(f"Scaled size: {new_width}x{new_height}")
-            
-            # Center the image on a black background
-            display_surface = pygame.Surface((screen_width, screen_height))
-            display_surface.fill((0, 0, 0))
-            x = (screen_width - new_width) // 2
-            y = (screen_height - new_height) // 2
-            display_surface.blit(scaled_img, (x, y))
-            images.append(display_surface)
-            print(f"Successfully loaded and scaled image: {path}")
-        except Exception as e:
-            print(f"Error loading image {path}: {e}")
+            # Check for early exit
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT or (
+                    event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE
+                ):
+                    pygame.quit()
+                    return
+
+        # Ensure we end on black
+        screen.fill((0, 0, 0))
+        pygame.display.flip()
+        
+        # Small pause on black screen
+        time.sleep(0.2)
+
+    except Exception as e:
+        print(f"Error loading logo: {e}")
+        # Fallback to simple loading text
+        font = pygame.font.SysFont(None, 48)
+        loading_text = font.render("Loading...", True, (255, 255, 255))
+        text_rect = loading_text.get_rect(center=(screen_width/2, screen_height/2))
+        screen.fill((0, 0, 0))
+        screen.blit(loading_text, text_rect)
+        pygame.display.flip()
+        
+        # Load images without visual progress
+        images = []
+        for path in image_paths:
+            try:
+                img = load_and_scale_image(path, screen_width, screen_height)
+                if img:
+                    images.append(img)
+            except Exception as e:
+                print(f"Error loading image {path}: {e}")
 
     if not images:
         print("No images were successfully loaded!")
@@ -217,6 +350,31 @@ def display_slideshow(image_paths, delay=3, transition="fade", transition_durati
     is_transitioning = False
     transition_start = 0
     running = True
+    display_surface = pygame.Surface((screen_width, screen_height))
+    display_surface.fill((0, 0, 0))
+
+    # Initial fade in from black
+    fade_start = time.time()
+    while time.time() - fade_start < transition_duration:
+        progress = (time.time() - fade_start) / transition_duration
+        temp = images[current_index].copy()
+        temp.set_alpha(int(255 * progress))
+        
+        screen.fill((0, 0, 0))
+        screen.blit(temp, (0, 0))
+        pygame.display.flip()
+        clock.tick(60)
+
+        # Check for early exit
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT or (
+                event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE
+            ):
+                pygame.quit()
+                return
+
+    display_surface = images[current_index].copy()
+    last_switch = time.time()  # Reset timer after initial fade
 
     while running:
         for event in pygame.event.get():
@@ -235,7 +393,7 @@ def display_slideshow(image_paths, delay=3, transition="fade", transition_durati
             if elapsed >= delay:
                 current_index = (current_index + 1) % len(images)
                 last_switch = current_time
-                display_surface = images[current_index]
+                display_surface = images[current_index].copy()
         else:
             # Start transition when delay time is reached
             if elapsed >= delay and not is_transitioning:
@@ -300,9 +458,9 @@ def display_slideshow(image_paths, delay=3, transition="fade", transition_durati
                     current_index = next_index
                     is_transitioning = False
                     last_switch = current_time
-                    display_surface = images[current_index]
+                    display_surface = images[current_index].copy()
             else:
-                display_surface = images[current_index]
+                display_surface = images[current_index].copy()
 
         screen.fill((0, 0, 0))
         screen.blit(display_surface, (0, 0))

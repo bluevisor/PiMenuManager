@@ -484,6 +484,17 @@
             background-color: rgba(255, 255, 255, 0.1);
             border-radius: 4px;
         }
+
+        .upload-text {
+            font-size: 14px;  /* Reduced from default */
+            line-height: 1.4;
+            text-align: center;
+        }
+
+        .upload-text small {
+            font-size: 12px;  /* Even smaller for the count text */
+            opacity: 0.8;
+        }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
 </head>
@@ -503,7 +514,7 @@
                 <input type="file" id="file-input" accept="image/*" multiple style="display: none;">
                 <div class="upload-text">
                     Drop images here or click to upload<br>
-                    Use 16:9 aspect ratio to avoid black bars<br>
+                    Use 16:9 images to avoid black bars<br>
                     <small>( <span id="image-count">{{ images|length }}</span> / {{ max_images }} )</small>
                 </div>
             </form>
