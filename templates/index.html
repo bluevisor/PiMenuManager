@@ -503,6 +503,7 @@
                 <input type="file" id="file-input" accept="image/*" multiple style="display: none;">
                 <div class="upload-text">
                     Drop images here or click to upload<br>
+                    Use 16:9 aspect ratio to avoid black bars<br>
                     <small>( <span id="image-count">{{ images|length }}</span> / {{ max_images }} )</small>
                 </div>
             </form>
@@ -540,11 +541,16 @@
                 <label>
                     Transition
                     <select id="transition-type">
-                        <option value="fade" {% if slideshow_settings.transition == 'fade' %}selected{% endif %}>Fade</option>
+                        <option value="fade" {% if slideshow_settings.transition == 'fade' %}selected{% endif %}>Cross Fade</option>
+                        <option value="fade-black" {% if slideshow_settings.transition == 'fade-black' %}selected{% endif %}>Fade to Black</option>
                         <option value="slide-left" {% if slideshow_settings.transition == 'slide-left' %}selected{% endif %}>Slide Left</option>
                         <option value="slide-right" {% if slideshow_settings.transition == 'slide-right' %}selected{% endif %}>Slide Right</option>
                         <option value="slide-up" {% if slideshow_settings.transition == 'slide-up' %}selected{% endif %}>Slide Up</option>
                         <option value="slide-down" {% if slideshow_settings.transition == 'slide-down' %}selected{% endif %}>Slide Down</option>
+                        <option value="zoom-in" {% if slideshow_settings.transition == 'zoom-in' %}selected{% endif %}>Scale & Fade Out</option>
+                        <option value="zoom-out" {% if slideshow_settings.transition == 'zoom-out' %}selected{% endif %}>Scale & Fade In</option>
+                        <option value="rotate-cw" {% if slideshow_settings.transition == 'rotate-cw' %}selected{% endif %}>Rotate CW</option>
+                        <option value="rotate-ccw" {% if slideshow_settings.transition == 'rotate-ccw' %}selected{% endif %}>Rotate CCW</option>
                         <option value="none" {% if slideshow_settings.transition == 'none' %}selected{% endif %}>None</option>
                     </select>
                 </label>
