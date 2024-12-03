@@ -4,6 +4,9 @@ env/
 .env/
 .venv/
 
+# User Settings
+*.json
+
 # Uploads directory
 uploads/
 uploads/*

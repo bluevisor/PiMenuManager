@@ -15,6 +15,9 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 # Store the current slideshow process
 slideshow_process = None
 
+# Add device name storage
+DEVICE_NAME_FILE = 'device_name.json'
+
 def load_image_order():
     try:
         if os.path.exists(ORDER_FILE):
@@ -44,6 +47,25 @@ def stop_slideshow():
         except (psutil.NoSuchProcess, AttributeError, psutil.TimeoutExpired):
             pass
         slideshow_process = None
+
+def load_device_name():
+    try:
+        if os.path.exists(DEVICE_NAME_FILE):
+            with open(DEVICE_NAME_FILE, 'r') as f:
+                data = json.load(f)
+                return data.get('name', '')
+    except Exception as e:
+        print(f"Error loading device name: {e}")
+    return ''
+
+def save_device_name(name):
+    try:
+        with open(DEVICE_NAME_FILE, 'w') as f:
+            json.dump({'name': name}, f)
+        return True
+    except Exception as e:
+        print(f"Error saving device name: {e}")
+        return False
 
 @app.route('/')
 def index():
@@ -189,12 +211,20 @@ def delete_images():
     save_image_order({'order': order})
     return jsonify({'status': 'success'})
 
+@app.route('/get_device_name')
+def get_device_name():
+    name = load_device_name()
+    return jsonify({'name': name})
+
 @app.route('/set_device_name', methods=['POST'])
 def set_device_name():
-    name = request.json.get('name', '')
-    # You can store this in a config file or database if needed
-    # For now, we'll just acknowledge the request
-    return jsonify({'status': 'success', 'name': name})
+    name = request.json.get('name', '').strip()
+    if not name:
+        return jsonify({'status': 'error', 'message': 'Name cannot be empty'}), 400
+    
+    if save_device_name(name):
+        return jsonify({'status': 'success', 'name': name})
+    return jsonify({'status': 'error', 'message': 'Failed to save device name'}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000) 
