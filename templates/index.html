@@ -132,6 +132,8 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             aspect-ratio: 1;
             touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
         }
 
         .image-item.selected {
@@ -343,7 +345,71 @@
                 padding-bottom: calc(var(--touch-target) + var(--spacing-md) * 2);
             }
         }
+
+        .image-item {
+            position: relative;
+            border: 2px solid transparent;
+            cursor: pointer;
+            background-color: #fff;
+            padding: var(--spacing-xs);
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            aspect-ratio: 1;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .image-item.sortable-ghost {
+            opacity: 0.3;
+        }
+
+        .image-item.sortable-chosen {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .image-item.sortable-drag {
+            opacity: 0.8;
+            transform: scale(1.05);
+        }
+
+        .image-handle {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 24px;
+            height: 24px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            z-index: 1;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .image-handle:after {
+            content: "⋮⋮";
+            font-size: 12px;
+            line-height: 1;
+            transform: rotate(90deg);
+        }
+
+        .image-item:hover .image-handle {
+            opacity: 1;
+        }
+
+        @media (max-width: 767px) {
+            .image-handle {
+                opacity: 1;
+                width: 32px;
+                height: 32px;
+            }
+        }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -383,7 +449,8 @@
 
             <div class="image-grid" id="image-grid">
                 {% for image in images %}
-                <div class="image-item" draggable="true" data-filename="{{ image.name }}">
+                <div class="image-item" data-filename="{{ image.name }}">
+                    <div class="image-handle"></div>
                     <img src="{{ url_for('uploaded_file', filename=image.name) }}" 
                          alt="{{ image.name }}"
                          onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22>⚠️</text></svg>'"/>
@@ -429,16 +496,42 @@
         const fileInput = document.getElementById('file-input');
         const imageGrid = document.getElementById('image-grid');
         const startSlideshowButton = document.getElementById('start-slideshow');
+        const deleteButton = document.getElementById('delete-selected');
+        const selectAllButton = document.getElementById('select-all');
         let selectedImages = [];
         let slideshowActive = false;
-        let draggedItem = null;
-        const deleteButton = document.getElementById('delete-selected');
-        const progressBar = document.getElementById('progress-bar');
-        const progressBarInner = document.getElementById('progress-bar-inner');
-        const selectAllButton = document.getElementById('select-all');
         let allSelected = false;
 
-        const uploadAreaDefaultText = "Drag & Drop Images Here or Click to Upload";
+        // Initialize Sortable
+        const sortable = new Sortable(imageGrid, {
+            animation: 150,
+            handle: '.image-handle',
+            ghostClass: 'sortable-ghost',
+            chosenClass: 'sortable-chosen',
+            dragClass: 'sortable-drag',
+            forceFallback: true,  // Better mobile experience
+            fallbackTolerance: 3,
+            onEnd: function() {
+                saveImageOrder();
+                updateSelectedImages();
+            }
+        });
+
+        // Update image selection handling
+        imageGrid.addEventListener('click', (e) => {
+            const item = e.target.closest('.image-item');
+            if (item && !e.target.closest('.image-handle')) {
+                item.classList.toggle('selected');
+                updateSelectedImages();
+            }
+        });
+
+        // Remove draggable attribute from items
+        document.querySelectorAll('.image-item').forEach(item => {
+            item.removeAttribute('draggable');
+        });
+
+        const uploadAreaDefaultText = "Drag & Drop Images Here or Tap to Upload";
         
         // Click to upload
         uploadArea.addEventListener('click', () => {
@@ -517,38 +610,22 @@
             }
         }
 
-        // Drag and drop reordering
-        document.querySelectorAll('.image-item').forEach(item => {
-            item.addEventListener('dragstart', (e) => {
-                draggedItem = item;
-                item.classList.add('dragging');
+        function saveImageOrder() {
+            const order = Array.from(imageGrid.children)
+                .map(item => item.getAttribute('data-filename'));
+            
+            fetch('/update_order', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    order: order
+                })
+            }).catch(error => {
+                console.error('Error saving image order:', error);
             });
-
-            item.addEventListener('dragend', () => {
-                draggedItem.classList.remove('dragging');
-                draggedItem = null;
-                updateSelectedImages();
-                saveImageOrder();
-            });
-
-            item.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                if (draggedItem && draggedItem !== item) {
-                    const rect = item.getBoundingClientRect();
-                    const midpoint = rect.x + rect.width / 2;
-                    if (e.clientX < midpoint) {
-                        item.parentNode.insertBefore(draggedItem, item);
-                    } else {
-                        item.parentNode.insertBefore(draggedItem, item.nextSibling);
-                    }
-                }
-            });
-
-            item.addEventListener('click', () => {
-                item.classList.toggle('selected');
-                updateSelectedImages();
-            });
-        });
+        }
 
         function updateSelectedImages() {
             selectedImages = Array.from(document.querySelectorAll('.image-item.selected'))
@@ -616,28 +693,6 @@
                 }
             }
         });
-
-        // Add function to save image order
-        function saveImageOrder() {
-            const order = Array.from(document.querySelectorAll('.image-item'))
-                .map(item => item.getAttribute('data-filename'));
-            
-            fetch('/update_order', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    order: order
-                })
-            }).then(response => {
-                if (!response.ok) {
-                    console.error('Failed to save image order');
-                }
-            }).catch(error => {
-                console.error('Error saving image order:', error);
-            });
-        }
 
         deleteButton.addEventListener('click', () => {
             if (selectedImages.length === 0) return;
