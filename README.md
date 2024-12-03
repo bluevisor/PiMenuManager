@@ -27,13 +27,7 @@ A digital menu management system with slideshow capabilities, designed for displ
 ### Slideshow Controls
 - **Customizable Display**:
   - Adjustable delay between slides (1-60 seconds)
-  - Multiple transition effects:
-    - Fade
-    - Slide Left
-    - Slide Right
-    - Slide Up
-    - Slide Down
-    - None
+  - Multiple transition effects
   - Configurable transition duration (0.1-5.0 seconds)
 
 ### Device Management
