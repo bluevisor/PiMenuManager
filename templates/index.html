@@ -88,6 +88,10 @@
             max-width: 200px;
         }
 
+        .upload-section {
+            margin-bottom: var(--spacing-lg);
+        }
+
         #upload-area {
             border: 2px dashed #ccc;
             border-radius: var(--border-radius);
@@ -95,7 +99,7 @@
             text-align: center;
             background-color: #fff;
             cursor: pointer;
-            margin-bottom: var(--spacing-md);
+            margin-bottom: var(--spacing-xs);
             min-height: var(--touch-target);
             display: flex;
             align-items: center;
@@ -167,9 +171,7 @@
         }
 
         .controls {
-            display: flex;
-            flex-direction: column;
-            gap: var(--spacing-md);
+            margin-top: var(--spacing-lg);
         }
 
         .control-row {
@@ -298,7 +300,7 @@
             background-color: #f3f3f3;
             border-radius: 2px;
             overflow: hidden;
-            margin-top: var(--spacing-sm);
+            margin-bottom: var(--spacing-lg);
             display: none;
         }
 
@@ -354,15 +356,16 @@
             </div>
         </div>
 
-        <div id="upload-area">
-            <div class="upload-text">Drag & Drop Images Here or Tap to Upload</div>
-            <form id="upload-form" style="display:none;">
-                <input type="file" id="file-input" multiple accept="image/*">
-            </form>
-        </div>
-
-        <div class="progress-bar" id="progress-bar">
-            <div class="progress-bar-inner" id="progress-bar-inner"></div>
+        <div class="upload-section">
+            <div id="upload-area">
+                <div class="upload-text">Drag & Drop Images Here or Tap to Upload</div>
+                <form id="upload-form" style="display:none;">
+                    <input type="file" id="file-input" multiple accept="image/*">
+                </form>
+            </div>
+            <div class="progress-bar" id="progress-bar">
+                <div class="progress-bar-inner" id="progress-bar-inner"></div>
+            </div>
         </div>
 
         <div class="controls">
