@@ -788,10 +788,14 @@
                 deviceNameText.textContent = data.name || 'Click Here To Set Device Name';
             },
             'image_list': (data) => {
+                // Clear the grid first
+                imageGrid.innerHTML = '';
+                
+                // Add new images
                 imageGrid.innerHTML = data.images.map(image => `
                     <div class="image-item" data-filename="${image.name}">
                         <div class="image-handle"></div>
-                        <img src="/uploads/${image.name}" 
+                        <img src="/uploads/${image.name}?t=${Date.now()}" 
                              alt="${image.name}"
                              onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22>⚠️</text></svg>'"/>
                         <div class="image-info">
@@ -810,6 +814,13 @@
                 // Update UI states
                 updateSelectedImages();
                 initializeSortable();
+                
+                // Force browser to reload images instead of using cache
+                imageGrid.querySelectorAll('img').forEach(img => {
+                    const currentSrc = img.src;
+                    img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'; // blank image
+                    img.src = currentSrc;
+                });
             },
             'selected_images': (data) => {
                 selectedImages = data.selected;
@@ -857,7 +868,7 @@
         // Initial button state update
         updateButtonStates();
 
-        // Update the delete button handler
+        // Update the delete button handler to remove the page reload
         deleteButton.addEventListener('click', async () => {
             if (selectedImages.length === 0) return;
             
@@ -875,10 +886,6 @@
                 }
                 
                 showNotification('Images deleted successfully');
-                // Reload the page after a short delay to show the notification
-                setTimeout(() => {
-                    window.location.reload();
-                }, 500);
             } catch (error) {
                 console.error('Error deleting images:', error);
                 showNotification('Failed to delete images');

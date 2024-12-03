@@ -329,6 +329,17 @@ def delete_images():
     
     # Save updated order
     save_image_order({'order': order})
+    
+    # Get updated image list
+    images = []
+    for f in os.listdir(UPLOAD_FOLDER):
+        fpath = os.path.join(UPLOAD_FOLDER, f)
+        upload_time = datetime.fromtimestamp(os.path.getctime(fpath)).strftime('%Y-%m-%d %H:%M:%S')
+        images.append({'name': f, 'upload_time': upload_time})
+    
+    # Notify clients about the updated image list
+    notify_clients('image_list', {'images': images})
+    
     return jsonify({'status': 'success'})
 
 @app.route('/get_device_name')
