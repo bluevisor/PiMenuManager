@@ -189,5 +189,12 @@ def delete_images():
     save_image_order({'order': order})
     return jsonify({'status': 'success'})
 
+@app.route('/set_device_name', methods=['POST'])
+def set_device_name():
+    name = request.json.get('name', '')
+    # You can store this in a config file or database if needed
+    # For now, we'll just acknowledge the request
+    return jsonify({'status': 'success', 'name': name})
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000) 
