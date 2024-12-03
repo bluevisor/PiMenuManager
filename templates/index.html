@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>U27 Image Manager</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f9;
+        }
+        h1 {
+            color: #333;
+        }
+        #upload-area {
+            border: 2px dashed #ccc;
+            padding: 40px;
+            text-align: center;
+            background-color: #fff;
+            cursor: pointer;
+            margin-bottom: 20px;
+            min-height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+        #upload-area.dragover {
+            border-color: #333;
+            background-color: #f0f0f0;
+        }
+        .image-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            min-height: 150px;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            position: relative;
+        }
+        .image-item {
+            position: relative;
+            border: 2px solid transparent;
+            cursor: move;
+            background-color: #fff;
+            padding: 5px;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            width: 200px;
+        }
+        .image-item.selected {
+            border-color: #333;
+        }
+        .image-item.dragging {
+            opacity: 0.5;
+        }
+        .image-item img {
+            width: 100%;
+            height: 150px;
+            object-fit: contain;
+            display: block;
+            background-color: #f5f5f5;
+        }
+        .image-info {
+            font-size: 12px;
+            margin-top: 5px;
+            word-break: break-all;
+        }
+        .image-info p {
+            margin: 2px 0;
+        }
+        .controls {
+            margin-top: 20px;
+        }
+        .slideshow-settings {
+            margin-bottom: 15px;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        .slideshow-settings label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .slideshow-settings input[type="number"] {
+            width: 60px;
+            padding: 5px;
+        }
+        .slideshow-settings select {
+            padding: 5px;
+        }
+        #start-slideshow {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #start-slideshow.active {
+            background-color: #f44336;
+        }
+        #start-slideshow:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .image-controls {
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .control-buttons {
+            display: flex;
+            gap: 10px;
+            margin-left: auto;  /* Push buttons to the right */
+        }
+        #select-all {
+            padding: 8px 16px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #select-all.deselect {
+            background-color: #808080;
+        }
+        #select-all:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #delete-selected {
+            padding: 8px 16px;
+            background-color: #f44336;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #delete-selected:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .pagination {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .pagination button {
+            padding: 5px 10px;
+            border: 1px solid #ddd;
+            background-color: white;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        .pagination button:disabled {
+            background-color: #f5f5f5;
+            cursor: not-allowed;
+        }
+        .pagination button.active {
+            background-color: #4CAF50;
+            color: white;
+            border-color: #4CAF50;
+        }
+        .progress-bar {
+            width: 100%;
+            background-color: #f3f3f3;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+            display: none;  /* Hidden by default */
+        }
+        
+        .progress-bar-inner {
+            height: 10px;
+            width: 0;
+            background-color: #4CAF50;
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <h1>U27 Menu Manager</h1>
+    <div id="upload-area">
+        Drag & Drop Images Here or Click to Upload
+        <form id="upload-form" style="display:none;">
+            <input type="file" id="file-input" multiple accept="image/*">
+        </form>
+    </div>
+    <div class="progress-bar" id="progress-bar">
+        <div class="progress-bar-inner" id="progress-bar-inner"></div>
+    </div>
+    <h2>Uploaded Images</h2>
+    <div class="image-grid" id="image-grid">
+        {% for image in images %}
+        <div class="image-item" draggable="true" data-filename="{{ image.name }}">
+            <img src="{{ url_for('uploaded_file', filename=image.name) }}" 
+                 alt="{{ image.name }}"
+                 onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22>⚠️</text></svg>'"/>
+            <div class="image-info">
+                <p>{{ image.name }}</p>
+                <p>{{ image.upload_time }}</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="image-controls">
+        <div class="pagination" id="pagination">
+            <button id="prev-page" disabled>&lt; Previous</button>
+            <span id="page-info">Page 1</span>
+            <button id="next-page">Next &gt;</button>
+        </div>
+        <div class="control-buttons">
+            <button id="select-all">Select All</button>
+            <button id="delete-selected" disabled>Delete Selected</button>
+        </div>
+    </div>
+    <div class="controls">
+        <div class="slideshow-settings">
+            <label>
+                Delay (seconds):
+                <input type="number" id="slideshow-delay" value="10" min="1" max="60">
+            </label>
+            <label>
+                Transition:
+                <select id="transition-type">
+                    <option value="fade" selected>Fade</option>
+                    <option value="slide-left">Slide Left</option>
+                    <option value="slide-right">Slide Right</option>
+                    <option value="slide-up">Slide Up</option>
+                    <option value="slide-down">Slide Down</option>
+                    <option value="none">None</option>
+                </select>
+            </label>
+            <label>
+                Transition Duration (seconds):
+                <input type="number" id="transition-duration" value="3.0" min="0.1" max="5.0" step="0.1">
+            </label>
+        </div>
+        <button id="start-slideshow" disabled>Start</button>
+    </div>
+    <script>
+        const uploadArea = document.getElementById('upload-area');
+        const uploadForm = document.getElementById('upload-form');
+        const fileInput = document.getElementById('file-input');
+        const imageGrid = document.getElementById('image-grid');
+        const startSlideshowButton = document.getElementById('start-slideshow');
+        let selectedImages = [];
+        let slideshowActive = false;
+        let draggedItem = null;
+        const deleteButton = document.getElementById('delete-selected');
+        const progressBar = document.getElementById('progress-bar');
+        const progressBarInner = document.getElementById('progress-bar-inner');
+        const selectAllButton = document.getElementById('select-all');
+        let allSelected = false;
+
+        const uploadAreaDefaultText = "Drag & Drop Images Here or Click to Upload";
+        
+        // Click to upload
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+        
+        // Drag and drop handling
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadArea.classList.remove('dragover');
+            const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
+            if (files.length > 0) {
+                await uploadFiles(files);
+            }
+        });
+        
+        fileInput.addEventListener('change', async () => {
+            const files = Array.from(fileInput.files);
+            if (files.length > 0) {
+                await uploadFiles(files);
+            }
+        });
+        
+        async function uploadFiles(files) {
+            progressBar.style.display = 'block';
+            progressBarInner.style.width = '0%';
+            uploadArea.textContent = 'Uploading images...';
+            
+            try {
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    if (file.size <= 10 * 1024 * 1024) {  // 10MB limit
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        
+                        try {
+                            const response = await fetch('/upload', {
+                                method: 'POST',
+                                body: formData
+                            });
+                            
+                            const result = await response.json();
+                            if (!response.ok) {
+                                throw new Error(result.error || 'Upload failed');
+                            }
+                        } catch (error) {
+                            console.error('Error uploading file:', error);
+                            alert(`Failed to upload ${file.name}: ${error.message}`);
+                        }
+                    } else {
+                        alert(`File ${file.name} exceeds 10MB limit`);
+                    }
+                    
+                    // Update progress bar
+                    const progress = ((i + 1) / files.length) * 100;
+                    progressBarInner.style.width = `${progress}%`;
+                }
+            } finally {
+                // Reset upload area text and progress bar
+                uploadArea.textContent = uploadAreaDefaultText;
+                progressBar.style.display = 'none';
+                window.location.reload();
+            }
+        }
+
+        // Drag and drop reordering
+        document.querySelectorAll('.image-item').forEach(item => {
+            item.addEventListener('dragstart', (e) => {
+                draggedItem = item;
+                item.classList.add('dragging');
+            });
+
+            item.addEventListener('dragend', () => {
+                draggedItem.classList.remove('dragging');
+                draggedItem = null;
+                updateSelectedImages();
+                saveImageOrder();
+            });
+
+            item.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                if (draggedItem && draggedItem !== item) {
+                    const rect = item.getBoundingClientRect();
+                    const midpoint = rect.x + rect.width / 2;
+                    if (e.clientX < midpoint) {
+                        item.parentNode.insertBefore(draggedItem, item);
+                    } else {
+                        item.parentNode.insertBefore(draggedItem, item.nextSibling);
+                    }
+                }
+            });
+
+            item.addEventListener('click', () => {
+                item.classList.toggle('selected');
+                updateSelectedImages();
+            });
+        });
+
+        function updateSelectedImages() {
+            selectedImages = Array.from(document.querySelectorAll('.image-item.selected'))
+                .map(item => item.getAttribute('data-filename'));
+            
+            // Only disable start button when no images selected and slideshow is not active
+            if (!slideshowActive) {
+                startSlideshowButton.disabled = selectedImages.length === 0;
+            }
+            
+            deleteButton.disabled = selectedImages.length === 0;
+            
+            // Update select all button state
+            const totalImages = document.querySelectorAll('.image-item').length;
+            allSelected = selectedImages.length === totalImages && totalImages > 0;
+            selectAllButton.textContent = allSelected ? 'Deselect All' : 'Select All';
+            selectAllButton.classList.toggle('deselect', allSelected);
+            selectAllButton.disabled = totalImages === 0;
+        }
+
+        startSlideshowButton.addEventListener('click', () => {
+            if (slideshowActive) {
+                fetch('/stop_slideshow', {
+                    method: 'POST'
+                }).then(response => {
+                    if (response.ok) {
+                        slideshowActive = false;
+                        startSlideshowButton.textContent = 'Start';
+                        startSlideshowButton.classList.remove('active');
+                        // Only disable if no images are selected
+                        startSlideshowButton.disabled = selectedImages.length === 0;
+                    }
+                });
+            } else {
+                if (selectedImages.length > 0) {
+                    const delay = document.getElementById('slideshow-delay').value;
+                    const transition = document.getElementById('transition-type').value;
+                    const transitionDuration = document.getElementById('transition-duration').value;
+                    
+                    fetch('/slideshow', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            images: selectedImages,
+                            delay: parseFloat(delay),
+                            transition: transition,
+                            transition_duration: parseFloat(transitionDuration)
+                        })
+                    }).then(response => {
+                        if (response.ok) {
+                            slideshowActive = true;
+                            startSlideshowButton.textContent = 'Stop';
+                            startSlideshowButton.classList.add('active');
+                            startSlideshowButton.disabled = false;  // Never disable while slideshow is active
+                        }
+                    });
+                }
+            }
+        });
+
+        // Add function to save image order
+        function saveImageOrder() {
+            const order = Array.from(document.querySelectorAll('.image-item'))
+                .map(item => item.getAttribute('data-filename'));
+            
+            fetch('/update_order', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    order: order
+                })
+            }).then(response => {
+                if (!response.ok) {
+                    console.error('Failed to save image order');
+                }
+            }).catch(error => {
+                console.error('Error saving image order:', error);
+            });
+        }
+
+        deleteButton.addEventListener('click', () => {
+            if (selectedImages.length === 0) return;
+            
+            const imageCount = selectedImages.length;
+            const message = imageCount === 1 
+                ? 'Are you sure you want to delete this image?' 
+                : `Are you sure you want to delete these ${imageCount} images?`;
+            
+            if (confirm(message)) {
+                fetch('/delete_images', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        images: selectedImages
+                    })
+                }).then(response => {
+                    if (response.ok) {
+                        selectedImages.forEach(filename => {
+                            const element = document.querySelector(`[data-filename="${filename}"]`);
+                            if (element) element.remove();
+                        });
+                        selectedImages = [];
+                        updateSelectedImages();
+                        saveImageOrder();  // Update the saved order
+                    }
+                }).catch(error => {
+                    console.error('Error deleting images:', error);
+                    alert('Failed to delete images. Please try again.');
+                });
+            }
+        });
+
+        // Add pagination handling
+        const ITEMS_PER_PAGE = 25;
+        let currentPage = 1;
+        const prevButton = document.getElementById('prev-page');
+        const nextButton = document.getElementById('next-page');
+        const pageInfo = document.getElementById('page-info');
+        
+        function updatePagination() {
+            const items = Array.from(imageGrid.getElementsByClassName('image-item'));
+            const totalPages = Math.ceil(items.length / ITEMS_PER_PAGE);
+            
+            // Hide pagination if only one page
+            document.getElementById('pagination').style.display = totalPages > 1 ? 'flex' : 'none';
+            
+            // Update buttons state
+            prevButton.disabled = currentPage === 1;
+            nextButton.disabled = currentPage === totalPages;
+            
+            // Update page info
+            pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+            
+            // Show/hide items based on current page
+            items.forEach((item, index) => {
+                const shouldShow = index >= (currentPage - 1) * ITEMS_PER_PAGE && 
+                                 index < currentPage * ITEMS_PER_PAGE;
+                item.style.display = shouldShow ? '' : 'none';
+            });
+        }
+        
+        prevButton.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                updatePagination();
+            }
+        });
+        
+        nextButton.addEventListener('click', () => {
+            const items = Array.from(imageGrid.getElementsByClassName('image-item'));
+            const totalPages = Math.ceil(items.length / ITEMS_PER_PAGE);
+            if (currentPage < totalPages) {
+                currentPage++;
+                updatePagination();
+            }
+        });
+        
+        // Update pagination on page load and after any changes
+        updatePagination();
+        
+        // Update the existing drag and drop handlers to maintain pagination
+        function handleImageAdded() {
+            updatePagination();
+        }
+        
+        selectAllButton.addEventListener('click', () => {
+            const items = Array.from(document.querySelectorAll('.image-item'));
+            allSelected = !allSelected;
+            
+            items.forEach(item => {
+                item.classList.toggle('selected', allSelected);
+            });
+            
+            selectAllButton.textContent = allSelected ? 'Deselect All' : 'Select All';
+            selectAllButton.classList.toggle('deselect', allSelected);
+            updateSelectedImages();
+        });
+        
+        // Call updateSelectedImages on page load
+        updateSelectedImages();
+    </script>
+</body>
+</html> 
