@@ -582,6 +582,17 @@
         selectedImages = JSON.parse('{{ selected_images|tojson|safe }}' || '[]');
         slideshowActive = {{ slideshow_active|tojson|safe }};
 
+        // Apply initial selections to UI
+        document.querySelectorAll('.image-item').forEach(item => {
+            const filename = item.getAttribute('data-filename');
+            if (selectedImages.includes(filename)) {
+                item.classList.add('selected');
+            }
+        });
+
+        // Update button states based on initial selection
+        updateButtonStates();
+
         // File Upload Handling
         uploadArea.addEventListener('click', () => {
             fileInput.click();
@@ -924,7 +935,8 @@
                     throw new Error('Failed to delete images');
                 }
                 
-                showNotification('Images deleted successfully');
+                const deletedCount = selectedImages.length;
+                showNotification(`${deletedCount} image(s) deleted successfully`);
             } catch (error) {
                 console.error('Error deleting images:', error);
                 showNotification('Failed to delete images');

@@ -53,6 +53,9 @@ def display_slideshow(image_paths, delay=3, transition="fade", transition_durati
     screen_width, screen_height = screen.get_size()
     clock = pygame.time.Clock()
 
+    # Hide the mouse cursor
+    pygame.mouse.set_visible(False)
+
     # Debug output
     print(f"Screen size: {screen_width}x{screen_height}")
     print(f"Loading {len(image_paths)} images...")
@@ -156,6 +159,8 @@ def display_slideshow(image_paths, delay=3, transition="fade", transition_durati
         pygame.display.flip()
         clock.tick(60)
 
+    # Show the cursor again before quitting
+    pygame.mouse.set_visible(True)
     pygame.quit()
 
 if __name__ == "__main__":

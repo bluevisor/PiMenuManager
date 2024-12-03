@@ -6,7 +6,7 @@ import signal
 import psutil
 import json
 from werkzeug.utils import secure_filename
-from queue import Queue
+from queue import Queue, Empty
 from threading import Lock
 from PIL import Image
 import io
@@ -198,6 +198,27 @@ def generate_thumbnail(filename):
         print(f"Error generating thumbnail for {filename}: {e}")
         return None
 
+def is_slideshow_running():
+    """Check if slideshow process is actually running"""
+    global slideshow_process
+    if slideshow_process is None:
+        return False
+    
+    try:
+        # Check if process is still running
+        if slideshow_process.poll() is None:
+            return True
+        else:
+            # Process has ended, clean up
+            slideshow_process = None
+            save_slideshow_state(False)
+            return False
+    except:
+        # If there's any error, assume not running
+        slideshow_process = None
+        save_slideshow_state(False)
+        return False
+
 @app.route('/')
 def index():
     # Load initial state
@@ -205,7 +226,10 @@ def index():
     slideshow_settings = load_slideshow_settings()
     device_name = load_device_name()
     selected_images = load_selected_images()
-    slideshow_active = load_slideshow_state()
+    
+    # Check actual slideshow state instead of relying on saved state
+    slideshow_active = is_slideshow_running()
+    save_slideshow_state(slideshow_active)  # Update state file to match reality
     
     # Get all images from upload folder
     images = []
@@ -463,16 +487,24 @@ def events():
                     event = client_queue.get(timeout=20)  # 20 second timeout
                     event_data = f"event: {event['event']}\ndata: {json.dumps(event['data'])}\n\n"
                     yield event_data
-                except:  # Timeout or other error
+                except Empty:  # Fixed: Use imported Empty exception
                     yield "data: ping\n\n"  # Keep connection alive
-        except GeneratorExit:  # Handle client disconnect
-            with clients_lock:
-                if client_queue in clients:
-                    clients.remove(client_queue)
+                except GeneratorExit:  # Client disconnected
+                    break
+                except Exception as e:  # Other errors
+                    print(f"SSE Error: {e}")
+                    break
         finally:
+            # Always clean up the client connection
             with clients_lock:
                 if client_queue in clients:
                     clients.remove(client_queue)
+            try:
+                # Try to drain the queue to prevent resource leaks
+                while not client_queue.empty():
+                    client_queue.get_nowait()
+            except:
+                pass
     
     return Response(generate(), mimetype='text/event-stream', headers={
         'Cache-Control': 'no-cache',
