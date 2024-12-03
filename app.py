@@ -12,15 +12,17 @@ from threading import Lock
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 ORDER_FILE = 'image_order.json'
+DEVICE_NAME_FILE = 'device_name.json'
+IMAGE_ORDER_FILE = 'image_order.json'
+SLIDESHOW_SETTINGS_FILE = 'slideshow_settings.json'
+SLIDESHOW_STATE_FILE = 'slideshow_state.json'
+SELECTED_IMAGES_FILE = 'selected_images.json'
+MAX_IMAGES = 49  # Maximum number of images allowed
+
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Store the current slideshow process
 slideshow_process = None
-
-# Add device name storage
-DEVICE_NAME_FILE = 'device_name.json'
-IMAGE_ORDER_FILE = 'image_order.json'
-SLIDESHOW_SETTINGS_FILE = 'slideshow_settings.json'
 
 # Store SSE clients
 clients = []
@@ -68,6 +70,7 @@ def stop_slideshow():
             slideshow_process.kill()
         finally:
             slideshow_process = None
+            save_slideshow_state(False)
 
 def load_device_name():
     try:
@@ -110,11 +113,52 @@ def save_slideshow_settings(settings):
         print(f"Error saving slideshow settings: {e}")
         return False
 
+def load_selected_images():
+    try:
+        if os.path.exists(SELECTED_IMAGES_FILE):
+            with open(SELECTED_IMAGES_FILE, 'r') as f:
+                data = json.load(f)
+                return data.get('selected', [])
+    except Exception as e:
+        print(f"Error loading selected images: {e}")
+    return []
+
+def save_selected_images(selected):
+    try:
+        with open(SELECTED_IMAGES_FILE, 'w') as f:
+            json.dump({'selected': selected}, f)
+        return True
+    except Exception as e:
+        print(f"Error saving selected images: {e}")
+        return False
+
+def load_slideshow_state():
+    try:
+        if os.path.exists(SLIDESHOW_STATE_FILE):
+            with open(SLIDESHOW_STATE_FILE, 'r') as f:
+                data = json.load(f)
+                return data.get('active', False)
+    except Exception as e:
+        print(f"Error loading slideshow state: {e}")
+    return False
+
+def save_slideshow_state(active):
+    try:
+        with open(SLIDESHOW_STATE_FILE, 'w') as f:
+            json.dump({'active': active}, f)
+        return True
+    except Exception as e:
+        print(f"Error saving slideshow state: {e}")
+        return False
+
 @app.route('/')
 def index():
     # Load initial state
     saved_order = load_image_order()
     slideshow_settings = load_slideshow_settings()
+    device_name = load_device_name()
+    selected_images = load_selected_images()
+    slideshow_active = load_slideshow_state()
     
     # Get all images from upload folder
     images = []
@@ -137,7 +181,10 @@ def index():
     return render_template('index.html', 
                          images=images, 
                          slideshow_settings=slideshow_settings,
-                         slideshow_active=bool(slideshow_process))
+                         slideshow_active=slideshow_active,
+                         device_name=device_name,
+                         selected_images=selected_images,
+                         max_images=MAX_IMAGES)
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -219,18 +266,15 @@ def slideshow():
     
     data = request.json
     images = data.get('images', [])
-    delay = data.get('delay', 10)
-    transition = data.get('transition', 'fade')
-    transition_duration = data.get('transition_duration', 3.0)
+    settings = {
+        'delay': data.get('delay', 10),
+        'transition': data.get('transition', 'fade'),
+        'transition_duration': data.get('transition_duration', 3.0)
+    }
     
     # Save settings and notify clients
-    settings = {
-        'delay': delay,
-        'transition': transition,
-        'transition_duration': transition_duration
-    }
-    save_slideshow_settings(settings)
-    notify_clients('slideshow_settings', settings)
+    if save_slideshow_settings(settings):
+        notify_clients('slideshow_settings', settings)
     
     if images:
         image_paths = ','.join(os.path.join(UPLOAD_FOLDER, img) for img in images)
@@ -238,10 +282,11 @@ def slideshow():
             'python3', 
             'display_image.py', 
             image_paths,
-            str(delay),
-            transition,
-            str(transition_duration)
+            str(settings['delay']),
+            settings['transition'],
+            str(settings['transition_duration'])
         ])
+        save_slideshow_state(True)
         notify_clients('slideshow_state', {'active': True})
     
     return '', 204
@@ -249,6 +294,7 @@ def slideshow():
 @app.route('/stop_slideshow', methods=['POST'])
 def stop_slideshow_route():
     stop_slideshow()
+    save_slideshow_state(False)
     notify_clients('slideshow_state', {'active': False})
     return '', 204
 
@@ -309,6 +355,8 @@ def get_slideshow_settings():
 def save_settings():
     settings = request.json
     if save_slideshow_settings(settings):
+        # Notify all clients about the settings change
+        notify_clients('slideshow_settings', settings)
         return jsonify({'status': 'success'})
     return jsonify({'status': 'error', 'message': 'Failed to save settings'}), 500
 
@@ -327,12 +375,27 @@ def events():
                     yield event_data
                 except:  # Timeout or other error
                     yield "data: ping\n\n"  # Keep connection alive
+        except GeneratorExit:  # Handle client disconnect
+            with clients_lock:
+                if client_queue in clients:
+                    clients.remove(client_queue)
         finally:
             with clients_lock:
                 if client_queue in clients:
                     clients.remove(client_queue)
     
-    return Response(generate(), mimetype='text/event-stream')
+    return Response(generate(), mimetype='text/event-stream', headers={
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
+    })
+
+@app.route('/update_selected', methods=['POST'])
+def update_selected():
+    selected = request.json.get('selected', [])
+    if save_selected_images(selected):
+        notify_clients('selected_images', {'selected': selected})
+        return jsonify({'status': 'success'})
+    return jsonify({'status': 'error', 'message': 'Failed to save selected images'}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000) 
