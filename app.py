@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, redirect, url_for, send_from_directory, jsonify
+from flask import Flask, request, render_template, redirect, url_for, send_from_directory, jsonify, Response
 import os
 import subprocess
 from datetime import datetime
@@ -6,6 +6,8 @@ import signal
 import psutil
 import json
 from werkzeug.utils import secure_filename
+from queue import Queue
+from threading import Lock
 
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
@@ -19,6 +21,26 @@ slideshow_process = None
 DEVICE_NAME_FILE = 'device_name.json'
 IMAGE_ORDER_FILE = 'image_order.json'
 SLIDESHOW_SETTINGS_FILE = 'slideshow_settings.json'
+
+# Store SSE clients
+clients = []
+clients_lock = Lock()
+
+def notify_clients(event_type, data):
+    with clients_lock:
+        dead_clients = []
+        for client in clients:
+            try:
+                client.put({
+                    'event': event_type,
+                    'data': data
+                })
+            except:
+                dead_clients.append(client)
+        
+        # Remove dead clients
+        for client in dead_clients:
+            clients.remove(client)
 
 def load_image_order():
     try:
@@ -39,16 +61,13 @@ def save_image_order(order):
 def stop_slideshow():
     global slideshow_process
     if slideshow_process:
-        # Terminate the display_image.py process
         try:
-            process = psutil.Process(slideshow_process.pid)
-            for child in process.children(recursive=True):
-                child.terminate()
-            process.terminate()
-            process.wait(timeout=3)  # Wait for process to terminate
-        except (psutil.NoSuchProcess, AttributeError, psutil.TimeoutExpired):
-            pass
-        slideshow_process = None
+            slideshow_process.terminate()
+            slideshow_process.wait(timeout=1)
+        except:
+            slideshow_process.kill()
+        finally:
+            slideshow_process = None
 
 def load_device_name():
     try:
@@ -93,7 +112,7 @@ def save_slideshow_settings(settings):
 
 @app.route('/')
 def index():
-    # Load saved order and settings
+    # Load initial state
     saved_order = load_image_order()
     slideshow_settings = load_slideshow_settings()
     
@@ -109,13 +128,16 @@ def index():
             images.append({'name': filename, 'upload_time': upload_time})
             files.remove(filename)
     
-    # Then add any remaining files that weren't in the saved order
+    # Then add any remaining files
     for filename in files:
         file_path = os.path.join(UPLOAD_FOLDER, filename)
         upload_time = datetime.fromtimestamp(os.path.getctime(file_path)).strftime('%Y-%m-%d %H:%M:%S')
         images.append({'name': filename, 'upload_time': upload_time})
     
-    return render_template('index.html', images=images, slideshow_settings=slideshow_settings)
+    return render_template('index.html', 
+                         images=images, 
+                         slideshow_settings=slideshow_settings,
+                         slideshow_active=bool(slideshow_process))
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -147,21 +169,25 @@ def upload_file():
         file_path = os.path.join(UPLOAD_FOLDER, filename)
         file.save(file_path)
         
-        # Update the order to include the new file
+        # Update order and notify clients
         saved_order = load_image_order()
         order = saved_order.get('order', [])
         if filename not in order:
             order.append(filename)
             save_image_order({'order': order})
+            notify_clients('image_order', {'order': order})
         
-        # Get the file's creation time
-        upload_time = datetime.fromtimestamp(os.path.getctime(file_path)).strftime('%Y-%m-%d %H:%M:%S')
+        # Get updated image list and notify clients
+        images = []
+        for f in os.listdir(UPLOAD_FOLDER):
+            fpath = os.path.join(UPLOAD_FOLDER, f)
+            upload_time = datetime.fromtimestamp(os.path.getctime(fpath)).strftime('%Y-%m-%d %H:%M:%S')
+            images.append({'name': f, 'upload_time': upload_time})
+        notify_clients('image_list', {'images': images})
         
         return jsonify({
             'success': True,
-            'filename': filename,
-            'upload_time': upload_time,
-            'renamed': filename != original_filename
+            'filename': filename
         })
     except Exception as e:
         print(f"Error saving file: {e}")
@@ -189,7 +215,7 @@ def uploaded_file(filename):
 @app.route('/slideshow', methods=['POST'])
 def slideshow():
     global slideshow_process
-    stop_slideshow()  # Stop any existing slideshow
+    stop_slideshow()
     
     data = request.json
     images = data.get('images', [])
@@ -197,18 +223,17 @@ def slideshow():
     transition = data.get('transition', 'fade')
     transition_duration = data.get('transition_duration', 3.0)
     
-    # Save the settings
-    save_slideshow_settings({
+    # Save settings and notify clients
+    settings = {
         'delay': delay,
         'transition': transition,
         'transition_duration': transition_duration
-    })
+    }
+    save_slideshow_settings(settings)
+    notify_clients('slideshow_settings', settings)
     
     if images:
-        # Create comma-separated list of full image paths
         image_paths = ','.join(os.path.join(UPLOAD_FOLDER, img) for img in images)
-        
-        # Start new slideshow process
         slideshow_process = subprocess.Popen([
             'python3', 
             'display_image.py', 
@@ -217,18 +242,21 @@ def slideshow():
             transition,
             str(transition_duration)
         ])
+        notify_clients('slideshow_state', {'active': True})
     
     return '', 204
 
 @app.route('/stop_slideshow', methods=['POST'])
 def stop_slideshow_route():
     stop_slideshow()
+    notify_clients('slideshow_state', {'active': False})
     return '', 204
 
 @app.route('/update_order', methods=['POST'])
 def update_order():
     order = request.json.get('order', [])
     save_image_order({'order': order})
+    notify_clients('image_order', {'order': order})
     return jsonify({'status': 'success'})
 
 @app.route('/delete_images', methods=['POST'])
@@ -265,10 +293,10 @@ def get_device_name():
 @app.route('/set_device_name', methods=['POST'])
 def set_device_name():
     name = request.json.get('name', '').strip()
-    if not name:
-        return jsonify({'status': 'error', 'message': 'Name cannot be empty'}), 400
-    
+    # Allow empty names, just save whatever was sent
     if save_device_name(name):
+        # Notify all clients about the name change
+        notify_clients('device_name', {'name': name})
         return jsonify({'status': 'success', 'name': name})
     return jsonify({'status': 'error', 'message': 'Failed to save device name'}), 500
 
@@ -283,6 +311,28 @@ def save_settings():
     if save_slideshow_settings(settings):
         return jsonify({'status': 'success'})
     return jsonify({'status': 'error', 'message': 'Failed to save settings'}), 500
+
+@app.route('/events')
+def events():
+    def generate():
+        client_queue = Queue()
+        with clients_lock:
+            clients.append(client_queue)
+        
+        try:
+            while True:
+                try:
+                    event = client_queue.get(timeout=20)  # 20 second timeout
+                    event_data = f"event: {event['event']}\ndata: {json.dumps(event['data'])}\n\n"
+                    yield event_data
+                except:  # Timeout or other error
+                    yield "data: ping\n\n"  # Keep connection alive
+        finally:
+            with clients_lock:
+                if client_queue in clients:
+                    clients.remove(client_queue)
+    
+    return Response(generate(), mimetype='text/event-stream')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000) 

@@ -9,13 +9,20 @@
             --primary-color: #2196F3;
             --success-color: #4CAF50;
             --danger-color: #f44336;
-            --disabled-color: #9e9e9e;
+            --bg-color: #121212;
+            --surface-color: #1e1e1e;
+            --surface-color-hover: #2d2d2d;
+            --border-color: #333;
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.85);
             --spacing-xs: 4px;
             --spacing-sm: 8px;
             --spacing-md: 16px;
             --spacing-lg: 24px;
             --border-radius: 8px;
             --touch-target: 44px;
+            --button-height: 36px;
+            --upload-area-height: 120px;
         }
 
         * {
@@ -27,7 +34,8 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #f4f4f9;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
             line-height: 1.4;
         }
 
@@ -38,11 +46,11 @@
         }
 
         .header {
-            background-color: #fff;
+            background-color: var(--surface-color);
             padding: var(--spacing-md);
             margin-bottom: var(--spacing-md);
             border-radius: var(--border-radius);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
 
         .header-content {
@@ -54,7 +62,7 @@
         h1 {
             margin: 0;
             font-size: 24px;
-            color: #333;
+            color: var(--text-primary);
             text-align: center;
         }
 
@@ -63,29 +71,37 @@
             align-items: center;
             justify-content: center;
             gap: var(--spacing-sm);
-            padding: var(--spacing-sm);
-            background-color: #f5f5f5;
+            padding: var(--spacing-sm) var(--spacing-md);
+            background-color: rgba(255, 255, 255, 0.1);
             border-radius: var(--border-radius);
             cursor: pointer;
-            min-height: var(--touch-target);
+            min-height: var(--button-height);
             transition: background-color 0.2s;
         }
 
         .device-name:hover {
-            background-color: #e0e0e0;
+            background-color: rgba(255, 255, 255, 0.15);
         }
 
         .device-name span {
-            color: #333;
+            color: var(--text-primary);
+            font-size: 14px;
         }
 
         .device-name-input {
-            font-size: 16px;
+            font-size: 14px;
             padding: var(--spacing-sm);
-            border: 1px solid #ccc;
+            border: 1px solid var(--border-color);
             border-radius: var(--border-radius);
             width: 100%;
             max-width: 200px;
+            background-color: var(--surface-color);
+            color: var(--text-primary);
+        }
+
+        .device-name-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
         }
 
         .upload-section {
@@ -93,23 +109,25 @@
         }
 
         #upload-area {
-            border: 2px dashed #ccc;
+            border: 2px dashed var(--border-color);
             border-radius: var(--border-radius);
             padding: var(--spacing-lg);
             text-align: center;
-            background-color: #fff;
+            background-color: var(--surface-color);
             cursor: pointer;
             margin-bottom: var(--spacing-xs);
-            min-height: var(--touch-target);
+            min-height: var(--upload-area-height);
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 16px;
+            color: var(--text-secondary);
+            transition: all 0.2s ease;
         }
 
-        #upload-area.dragover {
+        #upload-area:hover {
             border-color: var(--primary-color);
-            background-color: #f0f0f0;
+            background-color: var(--surface-color-hover);
         }
 
         .image-grid {
@@ -117,7 +135,7 @@
             grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
             gap: var(--spacing-sm);
             padding: var(--spacing-sm);
-            background-color: #fff;
+            background-color: var(--surface-color);
             border-radius: var(--border-radius);
             margin-bottom: var(--spacing-md);
         }
@@ -126,10 +144,10 @@
             position: relative;
             border: 2px solid transparent;
             cursor: pointer;
-            background-color: #fff;
+            background-color: var(--surface-color-hover);
             padding: var(--spacing-xs);
             border-radius: var(--border-radius);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
             aspect-ratio: 1;
             touch-action: none;
             user-select: none;
@@ -138,7 +156,7 @@
 
         .image-item.selected {
             border-color: var(--primary-color);
-            background-color: rgba(33, 150, 243, 0.1);
+            background-color: rgba(33, 150, 243, 0.15);
         }
 
         .image-item.dragging {
@@ -157,8 +175,8 @@
             bottom: 0;
             left: 0;
             right: 0;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
+            background: rgba(0, 0, 0, 0.8);
+            color: var(--text-primary);
             padding: var(--spacing-xs);
             font-size: 12px;
             border-bottom-left-radius: calc(var(--border-radius) - 2px);
@@ -190,13 +208,13 @@
         }
 
         .pagination button {
-            min-height: var(--touch-target);
-            padding: 0 var(--spacing-md);
-            border: none;
-            background-color: #fff;
-            border-radius: var(--border-radius);
-            font-size: 16px;
-            cursor: pointer;
+            min-width: 36px;
+            height: var(--button-height);
+            background-color: var(--surface-color-hover);
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
         }
 
         .control-buttons {
@@ -206,7 +224,7 @@
         }
 
         button {
-            min-height: var(--touch-target);
+            height: var(--button-height);
             padding: 0 var(--spacing-md);
             border: none;
             border-radius: var(--border-radius);
@@ -215,10 +233,14 @@
             background-color: var(--primary-color);
             color: white;
             transition: background-color 0.3s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
 
         button:disabled {
-            background-color: #ccc;
+            background-color: var(--border-color);
+            opacity: 0.7;
             cursor: not-allowed;
         }
 
@@ -227,7 +249,7 @@
         }
 
         .slideshow-controls {
-            background-color: #fff;
+            background-color: var(--surface-color);
             padding: var(--spacing-md);
             border-radius: var(--border-radius);
             margin-top: var(--spacing-md);
@@ -239,19 +261,16 @@
             left: 0;
             right: 0;
             padding: var(--spacing-md);
-            background-color: #fff;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            background-color: var(--surface-color);
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.3);
             z-index: 1000;
         }
 
         #start-slideshow {
             width: 100%;
-            min-height: var(--touch-target);
-            padding: var(--spacing-md);
-            font-size: 16px;
+            height: var(--button-height);
             font-weight: 500;
-            background-color: var(--disabled-color);
-            transition: background-color 0.3s ease;
+            background-color: var(--success-color);
         }
 
         #start-slideshow:not(:disabled) {
@@ -284,6 +303,7 @@
         .slideshow-options label {
             display: grid;
             gap: var(--spacing-xs);
+            color: var(--text-secondary);
         }
 
         .slideshow-options input,
@@ -291,15 +311,22 @@
             width: 100%;
             min-height: var(--touch-target);
             padding: 0 var(--spacing-sm);
-            border: 1px solid #ccc;
+            border: 1px solid var(--border-color);
             border-radius: var(--border-radius);
             font-size: 16px;
+            background-color: var(--surface-color-hover);
+            color: var(--text-primary);
+        }
+
+        .slideshow-options select option {
+            background-color: var(--surface-color);
+            color: var(--text-primary);
         }
 
         .progress-bar {
             width: 100%;
             height: 4px;
-            background-color: #f3f3f3;
+            background-color: var(--surface-color-hover);
             border-radius: 2px;
             overflow: hidden;
             margin-bottom: var(--spacing-lg);
@@ -350,10 +377,10 @@
             position: relative;
             border: 2px solid transparent;
             cursor: pointer;
-            background-color: #fff;
+            background-color: var(--surface-color-hover);
             padding: var(--spacing-xs);
             border-radius: var(--border-radius);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
             aspect-ratio: 1;
             touch-action: none;
             user-select: none;
@@ -384,7 +411,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
+            color: var(--text-primary);
             z-index: 1;
             opacity: 0.7;
             transition: opacity 0.2s;
@@ -414,8 +441,8 @@
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background-color: rgba(0, 0, 0, 0.8);
-            color: white;
+            background-color: rgba(0, 0, 0, 0.9);
+            color: var(--text-primary);
             padding: 12px 20px;
             border-radius: var(--border-radius);
             z-index: 1000;
@@ -423,6 +450,7 @@
             opacity: 0;
             transition: opacity 0.3s;
             pointer-events: none;
+            border: 1px solid var(--border-color);
         }
 
         .upload-notification.show {
@@ -437,7 +465,7 @@
             <div class="header-content">
                 <h1>U27 Menu Manager</h1>
                 <div class="device-name" id="device-name-display">
-                    Device: <span id="device-name-text">Click here to set Device Name</span>
+                    <span id="device-name-text">Set Device Name</span>
                 </div>
             </div>
         </div>
@@ -523,20 +551,187 @@
         let slideshowActive = false;
         let allSelected = false;
 
-        // Initialize Sortable
-        const sortable = new Sortable(imageGrid, {
-            animation: 150,
-            handle: '.image-handle',
-            ghostClass: 'sortable-ghost',
-            chosenClass: 'sortable-chosen',
-            dragClass: 'sortable-drag',
-            forceFallback: true,  // Better mobile experience
-            fallbackTolerance: 3,
-            onEnd: function() {
-                saveImageOrder();
+        // Setup SSE connection
+        const eventSource = new EventSource('/events');
+        
+        // Handle different event types
+        const eventHandlers = {
+            'device_name': (data) => {
+                deviceNameText.textContent = data.name || 'Click Here To Set Device Name';
+            },
+            'image_list': (data) => {
+                // Update image grid with new images
+                imageGrid.innerHTML = data.images.map(image => `
+                    <div class="image-item" data-filename="${image.name}">
+                        <div class="image-handle"></div>
+                        <img src="/uploads/${image.name}" 
+                             alt="${image.name}"
+                             onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><text x=%2250%%22 y=%2250%%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22>⚠️</text></svg>'"/>
+                        <div class="image-info">
+                            <p>${image.name}</p>
+                            <p>${image.upload_time}</p>
+                        </div>
+                    </div>
+                `).join('');
+                initializeSortable();
                 updateSelectedImages();
+            },
+            'image_order': (data) => {
+                // Update image order without recreating elements
+                const imageGrid = document.getElementById('image-grid');
+                const order = data.order;
+                const itemMap = new Map(
+                    Array.from(imageGrid.children).map(item => [item.dataset.filename, item])
+                );
+                
+                // Remove items that are not in the new order
+                Array.from(imageGrid.children).forEach(item => {
+                    if (!order.includes(item.dataset.filename)) {
+                        item.remove();
+                    }
+                });
+                
+                // Reorder existing items and add new ones
+                order.forEach((filename, index) => {
+                    const item = itemMap.get(filename);
+                    if (item) {
+                        // If item exists, move it to the correct position
+                        const currentIndex = Array.from(imageGrid.children).indexOf(item);
+                        if (currentIndex !== index) {
+                            if (currentIndex === -1) {
+                                imageGrid.appendChild(item);
+                            } else if (index >= imageGrid.children.length) {
+                                imageGrid.appendChild(item);
+                            } else {
+                                imageGrid.insertBefore(item, imageGrid.children[index]);
+                            }
+                        }
+                    }
+                });
+                
+                updateSelectedImages();
+            },
+            'slideshow_settings': (data) => {
+                // Update slideshow settings
+                document.getElementById('slideshow-delay').value = data.delay;
+                document.getElementById('transition-type').value = data.transition;
+                document.getElementById('transition-duration').value = data.transition_duration;
+            },
+            'slideshow_state': (data) => {
+                // Update slideshow state
+                slideshowActive = data.active;
+                const startButton = document.getElementById('start-slideshow');
+                startButton.textContent = slideshowActive ? 'Stop' : 'Start';
+                startButton.classList.toggle('active', slideshowActive);
+                startButton.disabled = !slideshowActive && selectedImages.length === 0;
             }
+        };
+
+        // Handle SSE events
+        Object.entries(eventHandlers).forEach(([event, handler]) => {
+            eventSource.addEventListener(event, (e) => {
+                const data = JSON.parse(e.data);
+                handler(data);
+            });
         });
+
+        eventSource.addEventListener('error', (e) => {
+            console.error('SSE connection error:', e);
+            setTimeout(() => {
+                eventSource.close();
+                const newEventSource = new EventSource('/events');
+                Object.assign(eventSource, newEventSource);
+            }, 5000);
+        });
+
+        // Device name handling
+        const deviceNameDisplay = document.getElementById('device-name-display');
+        const deviceNameText = document.getElementById('device-name-text');
+
+        deviceNameDisplay.addEventListener('click', (e) => {
+            if (e.target.tagName === 'INPUT') return;  // Don't handle clicks on input
+            
+            const currentName = deviceNameText.textContent;
+            const displayedName = currentName === 'Click Here To Set Device Name' ? '' : currentName;
+            
+            // Remove any existing input
+            const existingInput = deviceNameDisplay.querySelector('input');
+            if (existingInput) existingInput.remove();
+            
+            deviceNameText.style.display = 'none';
+            
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = displayedName;
+            input.className = 'device-name-input';
+            input.maxLength = 30;
+            input.placeholder = 'Enter device name';
+
+            const saveNewName = () => {
+                const newName = input.value.trim();
+                fetch('/set_device_name', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name: newName })
+                })
+                .catch(error => {
+                    console.error('Error saving device name:', error);
+                    deviceNameText.textContent = currentName;
+                })
+                .finally(() => {
+                    deviceNameText.style.display = '';
+                    input.remove();
+                });
+            };
+
+            input.addEventListener('blur', saveNewName);
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    saveNewName();
+                }
+            });
+
+            deviceNameDisplay.appendChild(input);
+            input.focus();
+            input.select();
+        });
+
+        // Initialize sortable
+        function initializeSortable() {
+            if (window.currentSortable) {
+                window.currentSortable.destroy();
+            }
+            window.currentSortable = new Sortable(imageGrid, {
+                animation: 150,
+                handle: '.image-handle',
+                ghostClass: 'sortable-ghost',
+                chosenClass: 'sortable-chosen',
+                dragClass: 'sortable-drag',
+                forceFallback: true,
+                fallbackTolerance: 3,
+                onEnd: function() {
+                    const newOrder = Array.from(imageGrid.children).map(item => 
+                        item.getAttribute('data-filename')
+                    );
+                    fetch('/update_order', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ order: newOrder })
+                    }).catch(error => {
+                        console.error('Error saving image order:', error);
+                    });
+                    updateSelectedImages();
+                }
+            });
+        }
+
+        // Initialize sortable on page load
+        initializeSortable();
 
         // Update image selection handling
         imageGrid.addEventListener('click', (e) => {
@@ -877,64 +1072,6 @@
         
         // Call updateSelectedImages on page load
         updateSelectedImages();
-
-        // Device name handling
-        const deviceNameDisplay = document.getElementById('device-name-display');
-        const deviceNameText = document.getElementById('device-name-text');
-
-        // Load device name on page load
-        fetch('/get_device_name')
-            .then(response => response.json())
-            .then(data => {
-                if (data.name) {
-                    deviceNameText.textContent = data.name;
-                }
-            })
-            .catch(error => console.error('Error loading device name:', error));
-
-        deviceNameDisplay.addEventListener('click', () => {
-            const currentName = deviceNameText.textContent;
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.value = currentName;
-            input.className = 'device-name-input';
-            input.maxLength = 30;
-
-            const saveNewName = () => {
-                const newName = input.value.trim();
-                if (newName && newName !== currentName) {
-                    fetch('/set_device_name', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ name: newName })
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.status === 'success') {
-                            deviceNameText.textContent = newName;
-                        }
-                    })
-                    .catch(error => console.error('Error saving device name:', error));
-                }
-                deviceNameText.style.display = '';
-                input.remove();
-            };
-
-            input.addEventListener('blur', saveNewName);
-            input.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    saveNewName();
-                }
-            });
-
-            deviceNameText.style.display = 'none';
-            deviceNameDisplay.appendChild(input);
-            input.focus();
-            input.select();
-        });
     </script>
 </body>
 </html> 
