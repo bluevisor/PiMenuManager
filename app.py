@@ -13,6 +13,8 @@ import io
 import hashlib
 from functools import lru_cache
 import random
+import argparse
+import sys
 
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
@@ -534,4 +536,41 @@ def thumbnail(filename):
         return '', 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000) 
+    parser = argparse.ArgumentParser(description='PiMenu Manager')
+    parser.add_argument('--start', action='store_true', help='Start slideshow with saved settings')
+    parser.add_argument('--port', type=int, default=5000, help='Port to run the service on (default: 5000)')
+    args = parser.parse_args()
+    
+    # Validate port number
+    if args.port < 1 or args.port > 65535:
+        print("Error: Port number must be between 1 and 65535")
+        sys.exit(1)
+    
+    if args.start:
+        # Load saved settings and selected images
+        settings = load_slideshow_settings()
+        selected_images = load_selected_images()
+        
+        if not selected_images:
+            print("No images selected for slideshow. Please select images first.")
+            sys.exit(1)
+            
+        # Prepare image paths
+        image_paths = [os.path.join(UPLOAD_FOLDER, img) for img in selected_images]
+        if not any(os.path.exists(path) for path in image_paths):
+            print("No selected images found in uploads folder.")
+            sys.exit(1)
+            
+        # Start slideshow process
+        slideshow_process = subprocess.Popen([
+            'python3',
+            'display_image.py',
+            ','.join(image_paths),
+            str(settings['delay']),
+            settings['transition'],
+            str(settings['transition_duration'])
+        ])
+        save_slideshow_state(True)
+    
+    print(f"Starting service on port {args.port}")
+    app.run(host='0.0.0.0', port=args.port) 
