@@ -1,6 +1,6 @@
 # U27 Menu Manager
 
-A digital menu management system with slideshow capabilities, designed for displaying menu items and promotional content on secondary displays.
+A digital menu management system with slideshow capabilities, designed for displaying menu items and promotional content on Raspberry Pi via HDMI.
 
 <img width="1227" alt="image" src="https://github.com/user-attachments/assets/dee12404-37dd-4d04-9b35-dc92737c01dd">
 
