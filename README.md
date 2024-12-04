@@ -8,7 +8,7 @@ A digital menu management system with slideshow capabilities, designed for displ
 - **Upload Images**: 
   - Drag & drop interface
   - Click to upload
-  - Supports PNG, JPG, JPEG, GIF, BMP formats
+  - Supports PNG, JPG, JPEG, GIF, BMP, WEBP, HEIF, HEIC formats
   - Visual feedback during upload
 
 ### Image Organization
