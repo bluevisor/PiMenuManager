@@ -68,7 +68,7 @@ A digital menu management system built for Raspberry Pi, designed to help restau
 
 1. Clone the repository
    ```bash
-   git clone [repository-url]
+   git clone https://github.com/bluevisor/PiMenuManager
    ```
 
 2. Create a virtual environment
